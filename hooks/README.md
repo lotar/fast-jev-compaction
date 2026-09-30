@@ -52,6 +52,7 @@ The plugin declares these `userConfig` values in
 | `preserveRecentMessages` | `6` |
 | `compactAtPercent` | `60` |
 | `minReductionRatio` | `0.25` |
+| `compactionTimeoutMs` | `15000` |
 | `maxStateTokens` | `25000` |
 | `maxRequestTokens` | `30000` |
 | `truncateHeadChars` | `300` |
@@ -67,8 +68,8 @@ then from the `env` block of the settings, with `TYPESAFE_API_KEY` as the
 fallback. `apiKeyFile` names a file to read when neither is set: the bare key,
 or dotenv lines holding one of those variables (`~/` is the home directory).
 
-Every option except `apiKey`, `compactAtPercent`, `minReductionRatio` and
-`model` is passed straight to the library; see the root README for what they
+Every option except `apiKey`, `compactAtPercent`, `minReductionRatio`,
+`compactionTimeoutMs` and `model` is passed straight to the library; see the root README for what they
 do. The `session.compact` hook runs the Jev requests concurrently. If Jev fails,
 the response is malformed, the key is unavailable, the history cannot be
 fitted into the state budget, or the estimated reduction is below
@@ -79,6 +80,21 @@ reduction, per-reason counts, state size and request count; a per-call
 `turn.complete` hook requests
 compaction when `context.percent` reaches `compactAtPercent`, with an
 in-flight guard.
+
+The hook waits at most `compactionTimeoutMs` for the Jev round, across all
+request batches. On a timeout, a plugin-triggered compaction returns a skip
+notice and leaves the conversation unchanged; manual and engine-triggered
+automatic compactions still fall back to the built-in summary. This bounds
+the Jev wait, not the duration of a built-in summary. The host HTTP interface
+does not expose per-request cancellation, so in-flight requests may still
+finish; their late results cannot replace the conversation. Zero, negative
+and non-finite timeout values use the default.
+
+Run `npm run test:hooks:host` with a function-hook-capable Claude Code CLI to
+exercise the deadline through Claude Code's actual hook dispatcher and a
+virtual clock. The tests use synthetic messages and mocked HTTP responses
+and make no model requests. `npm test` continues to run the fast library and
+adapter tests without a Claude CLI.
 
 ## Scope and caveat
 

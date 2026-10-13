@@ -333,12 +333,18 @@ function keyFromFile(text: string, names: readonly string[]): string | undefined
 export async function getApiKey($: KeyEngine, config: HookConfig): Promise<string | undefined> {
   if (config.apiKey) return config.apiKey;
   const openRouter = isOpenRouter(config.baseUrl);
-  const settings = await $.settings.read();
+  // Settings are read only when the environment has no key, and an unreadable
+  // settings file falls through to apiKeyFile instead of failing the compaction.
+  let settings: Readonly<Record<string, unknown>> | undefined;
+  const fromSettings = async (name: string): Promise<string | undefined> => {
+    settings ??= await $.settings.read().catch(() => ({}));
+    return settingsEnv(settings, name);
+  };
   if (openRouter) {
-    const key = (await $.env.get('OPENROUTER_API_KEY')) || settingsEnv(settings, 'OPENROUTER_API_KEY');
+    const key = (await $.env.get('OPENROUTER_API_KEY')) || (await fromSettings('OPENROUTER_API_KEY'));
     if (key) return key;
   }
-  const key = (await $.env.get('TYPESAFE_API_KEY')) || settingsEnv(settings, 'TYPESAFE_API_KEY');
+  const key = (await $.env.get('TYPESAFE_API_KEY')) || (await fromSettings('TYPESAFE_API_KEY'));
   if (key) return key;
   if (!config.apiKeyFile) return undefined;
   try {

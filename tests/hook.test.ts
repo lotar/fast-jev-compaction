@@ -247,6 +247,16 @@ describe('getApiKey', () => {
     expect(await getApiKey(engine({ OPENROUTER_API_KEY: 'or' }), { ...config, apiKey: 'explicit' })).toBe('explicit');
   });
 
+  it('uses an environment key without reading settings, and survives unreadable settings', async () => {
+    const config = { ...base, baseUrl: OPENROUTER, apiKeyFile: '/k' };
+    const broken = (env: Record<string, string>) => ({
+      ...engine(env, {}, { '/k': 'OPENROUTER_API_KEY=from-file\n' }),
+      settings: { read: async () => { throw new Error('settings unavailable'); } },
+    });
+    expect(await getApiKey(broken({ OPENROUTER_API_KEY: 'or' }), config)).toBe('or');
+    expect(await getApiKey(broken({}), config)).toBe('from-file');
+  });
+
   it('ignores the OpenRouter key on the TypeSafe endpoint', async () => {
     expect(await getApiKey(engine({ OPENROUTER_API_KEY: 'or', TYPESAFE_API_KEY: 'ts' }), base)).toBe('ts');
     expect(await getApiKey(engine({ OPENROUTER_API_KEY: 'or' }), base)).toBeUndefined();
